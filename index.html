@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CLD Variable Learning Coach</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;color:#1c304a;background:#f3f6fb}
+*{box-sizing:border-box}body{margin:0}.wrap{max-width:900px;margin:auto;padding:22px 16px}
+header{background:#173b64;color:white;padding:28px;border-radius:16px;margin-bottom:18px}
+h1{font-size:clamp(25px,4vw,36px);margin:8px 0}.sub{color:#dbe8f7}
+.panel{background:white;border:1px solid #d8e4f0;border-radius:15px;padding:24px;margin-bottom:16px}
+h2{font-size:21px;margin:0 0 15px}label{display:block;font-weight:650;margin:13px 0 7px}
+select,textarea{width:100%;border:1px solid #b6c7d8;border-radius:9px;padding:12px;font:inherit;background:white}
+textarea{min-height:170px;resize:vertical}.help,footer{color:#60758a;font-size:13px;line-height:1.55}
+button{font:inherit;font-weight:650;border:0;border-radius:9px;background:#225f9e;color:white;padding:12px 17px;cursor:pointer}
+button.secondary{background:#e7eef6;color:#20476c}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+.item{border:1px solid #d9e4ef;border-radius:12px;padding:17px;margin:12px 0}
+.item h3{margin:0 0 10px;font-size:17px}.status{font-weight:700;margin:7px 0}
+.ok{color:#147348}.warn{color:#a35c00}.suggest{border-left:3px solid #2c6daa;background:#eef5fc;border-radius:5px;padding:10px 12px}
+p{line-height:1.5}.tag{background:#dcebf9;color:#1c446c;border-radius:50px;padding:5px 10px;font-size:12px}
+footer{padding-bottom:22px}#feedback[hidden]{display:none}
+@media print{.controls,.actions{display:none!important}body{background:white}.panel{border:0}}
+</style></head><body><main class="wrap">
+<header><span class="tag">Free · No API · No login</span><h1>CLD Variable Learning Coach</h1>
+<p class="sub">CP2 & CP3 · Check whether a variable names a condition or quantity that can increase or decrease.</p></header>
+<section class="panel controls">
+<h2>Check your variable names</h2>
+<label for="stage">Change Project stage</label>
+<select id="stage"><option value="CP2">CP2 — Key Success Loops</option><option value="CP3">CP3 — Systems Archetypes</option></select>
+<label for="vars">Variables (one per line, up to 30)</label>
+<textarea id="vars" placeholder="Staff Competency&#10;More Training&#10;Training Programme&#10;Error Rate"></textarea>
+<p class="help">A variable should be a neutral noun or noun phrase describing something that can meaningfully increase or decrease over time. This tool does not judge causal links or your story.</p>
+<div class="actions"><button id="check" type="button">Check variables</button><button id="example" class="secondary" type="button">Load examples</button><button id="clear" class="secondary" type="button">Clear</button></div>
+</section>
+<section class="panel" id="feedback" hidden><h2>Variable naming feedback</h2><div id="results"></div>
+<div class="actions"><button id="download" type="button">Download feedback (.txt)</button><button id="print" class="secondary" type="button">Print / Save PDF</button></div></section>
+<footer>Checks run entirely in your browser. No information is uploaded. This is a rule-based learning aid, not generative AI. A green tick means the name passed the available naming rules, not that the student's narrative has been assessed.</footer>
+</main>
+<script>
+
+"use strict";
+const ACTION=/^(?:(?:we|staff|team|management|employees|students)\s+(?:want|need|should|must|will|can)\s+(?:to\s+)?|(?:want|need|aim|plan|try|hope|continue|start|begin)\s+to\s+|(?:should|must|need to|how to|ways to|steps to)\s+|(?:to\s+)?(?:improve|improving|increase|increasing|reduce|reducing|decrease|decreasing|enhance|enhancing|strengthen|strengthening|develop|developing|build|building|create|creating|implement|implementing|deploy|deploying|conduct|conducting|provide|providing|organise|organize|organising|organizing|facilitate|facilitating|promote|promoting|encourage|encouraging|monitor|monitoring|manage|managing|review|reviewing|evaluate|evaluating|achieve|achieving|ensure|ensuring|establish|establishing|introduce|introducing|launch|launching|deliver|delivering|set up|setting up|upgrade|upgrading|optimise|optimize|optimising|optimizing|boost|boosting|maintain|maintaining|support|supporting)\s+)/i;
+const DIRECTION=/^(?:more|less|fewer|higher|lower|greater|better|worse|increased|decreased|improved|reduced|enhanced|stronger|weaker|additional|extra|high|low|new)\s+/i;
+const CLAUSE=/\b(?:so that|in order to|because|which will|that will|leads? to|results? in|causes?|therefore|we want|we need|we should|should be|must be|is needed to)\b/i;
+const OBJECTS=new Set(["training","training programme","training program","programme","program","workshop","workshops","meeting","meetings","staff meeting","system","new system","technology","policy","framework","project","initiative","course","courses","seminar","seminars","app","application","software","tool","tools","platform","equipment","procedure","procedures","strategy","plan","plans","event","events","campaign","campaigns","presentation","document","documents","manual","handbook","dashboard","committee","task force","taskforce","team meeting"]);
+const VAGUE=new Set(["quality","performance","capacity","training","engagement","communication","collaboration","support","management","improvement","effectiveness","efficiency","awareness","culture","learning","knowledge","resources","staff","technology","system","change","feedback","leadership","policy","trust","motivation","satisfaction","process","participation","availability","readiness"]);
+const SUGGEST={
+"training":["Training Frequency","Training Hours","Training Participation","Training Quality"],
+"trainers":["Number of Trainers","Trainer Availability"],
+"trainer":["Number of Trainers","Trainer Availability"],
+"engagement":["Employee Engagement","Stakeholder Engagement","Engagement Level"],
+"communication":["Communication Quality","Communication Frequency","Communication Clarity"],
+"staff competency":["Staff Competency"],"competency":["Staff Competency","Competency Level"],
+"workload":["Workload"],"trust":["Stakeholder Trust","Team Trust"],
+"staff turnover":["Staff Turnover Rate"],"turnover":["Employee Turnover Rate"],
+"system":["System Reliability","System Usability","Technology Adoption"],
+"new system":["System Reliability","System Usability","Technology Adoption"],
+"training programme":["Training Participation","Training Quality","Training Frequency"],
+"training program":["Training Participation","Training Quality","Training Frequency"],
+"staff meeting":["Meeting Frequency","Meeting Effectiveness"],
+"meeting":["Meeting Frequency","Meeting Effectiveness"],
+"meetings":["Meeting Frequency","Meeting Effectiveness"],
+"workshops":["Workshop Frequency","Workshop Participation"],
+"workshop":["Workshop Frequency","Workshop Participation"],
+"technology":["Technology Adoption","System Reliability"],
+"policy":["Policy Clarity","Policy Compliance"],
+"framework":["Framework Adoption","Framework Usability"],
+"project":["Project Progress","Project Completion Rate"],
+"programme":["Programme Participation","Programme Effectiveness"],
+"program":["Programme Participation","Programme Effectiveness"],
+"support":["Support Availability","Leadership Support"],
+"quality":["Service Quality","Work Quality"],
+"performance":["Team Performance","Service Performance"],
+"capacity":["Operational Capacity","Staffing Capacity"],
+"improvement":["Improvement Capacity","Improvement Frequency"],
+"feedback":["Feedback Quality","Feedback Frequency"],
+"staff":["Staff Availability","Staff Competency"],
+"resources":["Resource Availability","Resource Adequacy"],
+"process":["Process Efficiency","Process Reliability"],
+"leadership":["Leadership Support","Leadership Capability"],
+"knowledge":["Staff Knowledge","Knowledge Accessibility"],
+"culture":["Learning Culture","Collaboration Culture"]
+};
+const GOOD=new Set(["workload","staff competency","stakeholder trust","team trust","staff confidence","employee engagement","stakeholder engagement","engagement level","training frequency","training hours","training quality","training participation","training duration","training effectiveness","error rate","staff turnover rate","employee turnover rate","number of trainers","trainer availability","staff availability","work quality","service quality","communication quality","communication frequency","communication clarity","process efficiency","process reliability","system reliability","system usability","technology adoption","feedback quality","feedback frequency","leadership support","customer satisfaction","employee satisfaction","improvement capacity","improvement frequency","change readiness","workload balance","staff motivation","quality of communication","number of staff trained","resource availability","resource adequacy","knowledge accessibility","learning culture","team cohesion","psychological safety","processing time","response time","service delivery time","complaint rate","staffing levels","training programme participation","training program participation","meeting frequency","meeting effectiveness","workshop frequency","workshop participation","programme participation","project progress","policy clarity","policy compliance","framework adoption","operational capacity","staffing capacity","learning capacity","data accuracy","data quality","completion rate","service demand","productivity","employee retention","staff knowledge"]);
+const MEASURE_END=/\b(?:rate|frequency|quality|quantity|level|levels|capacity|availability|reliability|usability|effectiveness|efficiency|clarity|accuracy|confidence|competency|competence|participation|engagement|readiness|satisfaction|motivation|retention|turnover|duration|time|hours|days|cost|costs|volume|demand|backlog|workload|pressure|skills|knowledge|trust|safety|adoption|compliance|alignment|consistency|productivity|resilience|accessibility|utilisation|utilization|commitment|cohesion|progress|coverage|adequacy|proficiency|wellbeing|well-being|fatigue|stress|morale|awareness|support|autonomy|complexity|flexibility|stability|transparency|collaboration|cooperation|coordination|sharing|sustainability|performance|competencies|incidents|complaints|errors|defects|trainers|employees|participants)$/i;
+function tidy(s){return String(s||"").trim().replace(/\s+/g," ");}
+function distinct(a){return [...new Set(a)].filter(Boolean).slice(0,4);}
+function suggest(core){
+ const c=core.toLowerCase().replace(/^(?:a|an|the)\s+/,"").trim();
+ if(SUGGEST[c])return SUGGEST[c];
+ if(/^(?:trainers|trainer)$/.test(c))return SUGGEST.trainers;
+ if(/^(?:workshops|workshop)$/.test(c))return SUGGEST.workshop;
+ return [];
+}
+function reviewVariable(input){
+ const name=tidy(input),lower=name.toLowerCase();
+ const rethink=(reason,core,question)=>({name,status:"rethink",reason,suggestions:distinct(suggest(core||name)),question:question||"What condition or quantity do you mean that could increase or decrease over time?"});
+ if(!name)return rethink("Enter a variable name.");
+ if(/^[\d\W]+$/.test(name))return rethink("This does not identify a changing condition or quantity.");
+ if(CLAUSE.test(name)||/[.!?;:]/.test(name))return rethink("This reads like a sentence or explanation rather than one variable.","","What single changing condition does this sentence describe?");
+ if(/^(?:there is|there are|we have|our team|my team|the staff)\b/i.test(name))return rethink("This reads like a statement rather than a variable name.");
+ const isAction=ACTION.test(name),isDirection=DIRECTION.test(name);
+ if(isAction||isDirection){
+   const core=tidy(name.replace(ACTION,"").replace(DIRECTION,""));
+   const reason=isDirection?"The name begins with a directional word. Name the changing condition without saying which direction it moves.":"The name describes an action, intention, or intervention rather than a neutral variable.";
+   return rethink(reason,core);
+ }
+ if(/\b(?:more|less|better|improved|increased|reduced|decreased)\s+(?:than|to|by)\b/i.test(name))return rethink("The phrase describes a comparison or direction, not a neutral variable.");
+ if(/\b(?:to improve|to increase|to reduce|to enhance|to develop|to implement|to achieve)\b/i.test(name))return rethink("This describes a purpose or action rather than a variable.");
+ if(OBJECTS.has(lower))return rethink("This names an activity, object, or intervention, but not the aspect of it that can increase or decrease.");
+ if(VAGUE.has(lower))return rethink("This single term is broad or ambiguous. Name the particular condition or quantity you mean.");
+ const words=name.split(" ");
+ if(words.length>10)return rethink("This is unusually long for one variable and may contain a sentence. Try naming one concise changing condition.");
+ if(words.length>6&&!/^(?:number|percentage|proportion|amount|level|rate|frequency|duration|quality|availability|time)\s+of\b/i.test(name))return rethink("This is a long phrase. Check whether it describes one clear changing condition.");
+ if(GOOD.has(lower))return {name,status:"okay"};
+ if(/^(?:number|percentage|proportion|amount|level|rate|frequency|duration|quality|availability|time|volume)\s+of\s+\S+/i.test(name))return {name,status:"okay"};
+ if(words.length>=2&&MEASURE_END.test(name))return {name,status:"okay"};
+ return rethink("It is not clear whether this phrase names something that can meaningfully increase or decrease.");
+}
+if(typeof module!=="undefined"&&module.exports)module.exports={reviewVariable};
+
+</script>
+<script>
+const $=id=>document.getElementById(id);
+const escapeHTML=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let report="";
+$("example").addEventListener("click",()=>{$("vars").value="Staff Competency\nMore Training\nMore Trainers\nWant to Improve Communication\nTraining Programme\nTraining Frequency\nError Rate\nWorkload";});
+$("clear").addEventListener("click",()=>{$("vars").value="";$("feedback").hidden=true;});
+$("check").addEventListener("click",()=>{
+ const lines=$("vars").value.split(/\r?\n/).map(tidy).filter(Boolean);
+ if(lines.length<1||lines.length>30){alert("Please enter between 1 and 30 variables, one per line.");return;}
+ const reviews=lines.map(reviewVariable);
+ $("results").innerHTML=reviews.map((r,i)=>{
+  let content='<article class="item"><h3>'+escapeHTML((i+1)+". "+r.name)+'</h3>';
+  if(r.status==="okay")content+='<div class="status ok">✓ Variable is okay.</div>';
+  else{
+    content+='<div class="status warn">⚠ Rethink Variable</div>';
+    content+='<p><strong>Reason:</strong> '+escapeHTML(r.reason)+'</p>';
+    if(r.suggestions.length)content+='<p class="suggest"><strong>Possible variable names:</strong> '+r.suggestions.map(escapeHTML).join(" · ")+'</p>';
+    content+='<p><strong>Reflect:</strong> '+escapeHTML(r.question)+'</p>';
+  }
+  return content+"</article>";
+ }).join("");
+ report="CLD VARIABLE LEARNING COACH\nStage: "+$("stage").value+"\n\n"+reviews.map((r,i)=>{
+   let x=(i+1)+". "+r.name+"\n";
+   if(r.status==="okay")return x+"✓ Variable is okay.";
+   return x+"⚠ Rethink Variable\nReason: "+r.reason+(r.suggestions.length?"\nPossible variable names: "+r.suggestions.join(", "):"")+"\nReflect: "+r.question;
+ }).join("\n\n");
+ $("feedback").hidden=false;
+ $("feedback").scrollIntoView({behavior:"smooth",block:"start"});
+});
+$("download").addEventListener("click",()=>{
+ const u=URL.createObjectURL(new Blob([report],{type:"text/plain;charset=utf-8"}));
+ const a=document.createElement("a");a.href=u;a.download="CLD-variable-feedback.txt";a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);
+});
+$("print").addEventListener("click",()=>window.print());
+</script></body></html>
