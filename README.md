@@ -17,7 +17,7 @@ footer{font-size:13px;color:#66768a;padding:0 0 30px}
 ul{line-height:1.65}#results:empty{display:none}
 @media print{.controls,.actions,button{display:none!important}body{background:white}.panel{border:0}}
 </style></head><body><main class="wrap">
-<header><span class="tag">100% free · No accounts · No API</span><h1>CLD Variable Learning Coach</h1>
+<header><h1>CLD Variable Learning Coach</h1>
 <p class="sub">A reflective variable-naming tool for CP2 Key Success Loops and CP3 Systems Archetypes.</p></header>
 <section class="panel controls"><h2>Check your variables</h2>
 <label for="stage">Project stage</label><select id="stage"><option value="CP2">CP2 — Key Success Loops</option><option value="CP3">CP3 — Systems Archetypes</option></select>
