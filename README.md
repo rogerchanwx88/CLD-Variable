@@ -1,4 +1,3 @@
-<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>CLD Variable Learning Coach — Free Edition</title>
 <style>
@@ -23,7 +22,7 @@ ul{line-height:1.65}#results:empty{display:none}
 <section class="panel controls"><h2>Check your variables</h2>
 <label for="stage">Project stage</label><select id="stage"><option value="CP2">CP2 — Key Success Loops</option><option value="CP3">CP3 — Systems Archetypes</option></select>
 <label for="context">Project context (optional)</label><textarea id="context" placeholder="What is your change project about?"></textarea>
-<label for="vars">Variables (one per line, up to 30)</label><textarea id="vars" style="min-height:180px" placeholder="Improve Staff Competency&#10;Training&#10;Work Quality&#10;Stakeholder Trust"></textarea>
+<label for="vars">Variables (one per line, up to 30)</label><textarea id="vars" style="min-height:180px" placeholder="Staff Competency&#10;Training&#10;Work Quality&#10;Stakeholder Trust"></textarea>
 <p class="help">A variable should normally describe a condition or quantity that can increase or decrease. Suggestions are prompts, not definitive corrections.</p>
 <div class="actions"><button id="check">Review my variables</button><button class="secondary" id="example">Load example</button><button class="secondary" id="clear">Clear</button></div></section>
 <section class="panel" id="feedback" hidden><h2>Facilitator Feedback</h2><p id="intro"></p><div id="results"></div><div id="cross"></div>
