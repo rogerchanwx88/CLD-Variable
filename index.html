@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CLD Variable Learning Coach</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;color:#1c304a;background:#f3f6fb}
+*{box-sizing:border-box}body{margin:0}.wrap{max-width:900px;margin:auto;padding:22px 16px}
+header{background:#173b64;color:white;padding:28px;border-radius:16px;margin-bottom:18px}
+h1{font-size:clamp(25px,4vw,36px);margin:8px 0}.sub{color:#dbe8f7}
+.panel{background:white;border:1px solid #d8e4f0;border-radius:15px;padding:24px;margin-bottom:16px}
+h2{font-size:21px;margin:0 0 15px}label{display:block;font-weight:650;margin:13px 0 7px}
+select,textarea{width:100%;border:1px solid #b6c7d8;border-radius:9px;padding:12px;font:inherit;background:white}
+textarea{min-height:170px;resize:vertical}.help,footer{color:#60758a;font-size:13px;line-height:1.55}
+button{font:inherit;font-weight:650;border:0;border-radius:9px;background:#225f9e;color:white;padding:12px 17px;cursor:pointer}
+button.secondary{background:#e7eef6;color:#20476c}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+.item{border:1px solid #d9e4ef;border-radius:12px;padding:17px;margin:12px 0}
+.item h3{margin:0 0 10px;font-size:17px}.status{font-weight:700;margin:7px 0}
+.ok{color:#147348}.warn{color:#a35c00}.suggest{border-left:3px solid #2c6daa;background:#eef5fc;border-radius:5px;padding:10px 12px}
+p{line-height:1.5}.tag{background:#dcebf9;color:#1c446c;border-radius:50px;padding:5px 10px;font-size:12px}
+footer{padding-bottom:22px}#feedback[hidden]{display:none}
+@media print{.controls,.actions{display:none!important}body{background:white}.panel{border:0}}
+</style></head><body><main class="wrap">
+<header><span class="tag">Free · No API · No login</span><h1>CLD Variable Learning Coach</h1>
+<p class="sub">CP2 & CP3 · Check whether a variable names a condition or quantity that can increase or decrease.</p></header>
+<section class="panel controls">
+<h2>Check your variable names</h2>
+<label for="stage">Change Project stage</label>
+<select id="stage"><option value="CP2">CP2 — Key Success Loops</option><option value="CP3">CP3 — Systems Archetypes</option></select>
+<label for="vars">Variables (one per line, up to 30)</label>
+<textarea id="vars" placeholder="Staff Competency&#10;More Training&#10;Training Programme&#10;Error Rate"></textarea>
+<p class="help">A variable should be a neutral noun or noun phrase describing something that can meaningfully increase or decrease over time. This tool does not judge causal links or your story.</p>
+<div class="actions"><button id="check" type="button">Check variables</button><button id="example" class="secondary" type="button">Load examples</button><button id="clear" class="secondary" type="button">Clear</button></div>
+</section>
+<section class="panel" id="feedback" hidden><h2>Variable naming feedback</h2><div id="results"></div>
+<div class="actions"><button id="download" type="button">Download feedback (.txt)</button><button id="print" class="secondary" type="button">Print / Save PDF</button></div></section>
+<footer>Checks run entirely in your browser. No information is uploaded. This is a rule-based learning aid, not generative AI. A green tick means the name passed the available naming rules, not that the student's narrative has been assessed.</footer>
+</main>
+<script>
+
+
+
+
+
+
+
+
+"use strict";
+/* CLD Variable Coach v10: offline heuristic classifier; no causal loop analysis */
+const NORMALIZE_MAP={"trainings":"training","trainer":"trainers","employees":"staff","employee":"staff","workers":"staff","worker":"staff","personnel":"staff","peoples":"people","person":"people","juniors":"junior staff","junior":"junior staff","hrs":"hr","human resources":"hr","human resource":"hr","courses":"course","workshops":"workshop","meetings":"meeting","programs":"programme","program":"programme","programmes":"programme","skills":"skills","trainners":"trainers","communcation":"communication","competancy":"competency","compentency":"competency","engagment":"engagement","managment":"management"};
+const DIR_WORDS=new Set(["more","less","fewer","higher","lower","greater","better","worse","increased","decreased","improved","reduced","enhanced","stronger","weaker","additional","extra","high","low","new","further","maximum","minimum"]);
+const ACTION_ROOTS=["add","give","remove","engage","improve","increase","decrease","reduce","enhance","develop","deploy","implement","conduct","provide","create","build","promote","encourage","manage","monitor","deliver","organise","organize","establish","introduce","launch","maintain","ensure","achieve","facilitate","hire","recruit","appoint","allocate","assign","upgrade","boost","eliminate","cut","review","evaluate","plan","prepare","identify","assess","strengthen","raise","lower","expand","minimise","minimize","maximise","maximize","start","stop","continue","arrange","coordinate","motivate","train","teach","coach","install","purchase","buy","use","make","set","support","increase","offer","attend","organize","organise","conduct","rollout","roll","hold","send","impart","improvise","fund","finance","approve","authorize","authorise","enforce","audit","comply","outsource","digitise","digitize","automate","standardise","standardize","revise","amend","replace","procure","spend","invest","pay","borrow","collect","save","restructure","reorganise","reorganize","transfer","redeploy","downsize","upskill","reskill","onboard","retain","dismiss","terminate","draft","publish","distribute","communicate","migrate","integrate","configure","streamline","optimise","optimize"];
+const ACTION_FORMS=new Set();
+for(const root of ACTION_ROOTS){ACTION_FORMS.add(root);ACTION_FORMS.add(root+"s");ACTION_FORMS.add(root+"ed");ACTION_FORMS.add(root+"ing");if(root.endsWith("e")){ACTION_FORMS.add(root.slice(0,-1)+"ing");ACTION_FORMS.add(root+"d");}if(root.endsWith("y")){ACTION_FORMS.add(root.slice(0,-1)+"ies");ACTION_FORMS.add(root.slice(0,-1)+"ied");}}
+for(const v of ["gave","given","made","making","bought","buying","taught","teaching","held","holding","sent","sending","set","setting","cutting","put","putting","remove","removing","engage","engaging","add","adding","provide","providing","deployed","decreasing","training","supporting","recruiting","rollout","rolled"])ACTION_FORMS.add(v);
+const INTENT_WORDS=new Set(["want","wants","need","needs","should","must","will","shall","would","could","aim","aims","hope","hopes","try","tries"]);
+const CLAUSE=/\b(?:because|therefore|so that|in order to|leads? to|results? in|causes?|which will|that will|should be|must be|we want|we need|to improve|to reduce|to increase|to implement|to develop|so we can|in order for)\b/i;
+const OBJECTS=new Set(["training","training programme","programme","workshop","meeting","staff meeting","system","new system","technology","policy","framework","project","initiative","course","seminar","app","application","software","tool","platform","equipment","procedure","strategy","plan","event","campaign","presentation","document","manual","handbook","dashboard","committee","task force","training session","hr function","function of people"]);
+const BARE=new Set(["quality","performance","capacity","engagement","communication","collaboration","support","management","improvement","effectiveness","efficiency","awareness","culture","learning","knowledge","resources","staff","technology","system","change","feedback","leadership","policy","trust","motivation","satisfaction","process","participation","availability","readiness","competency","function","people","trainers","hr","workforce","skills","workshops"]);
+const MEASURE=new Set(["rate","frequency","quality","quantity","level","levels","capacity","availability","reliability","usability","effectiveness","efficiency","clarity","accuracy","timeliness","confidence","competency","competence","participation","engagement","readiness","satisfaction","motivation","retention","turnover","duration","time","hours","days","cost","costs","volume","demand","backlog","workload","pressure","skills","knowledge","trust","safety","adoption","compliance","alignment","consistency","productivity","resilience","accessibility","utilisation","utilization","commitment","cohesion","progress","coverage","adequacy","proficiency","wellbeing","well-being","fatigue","stress","morale","awareness","support","autonomy","complexity","flexibility","stability","transparency","collaboration","cooperation","coordination","sharing","sustainability","performance","headcount","staffing","turnaround","incidents","complaints","errors","defects","absenteeism","capability","capabilities","maturity","uptake","participation","effectiveness","competencies","readiness","understanding","access","empowerment","engagement","innovation","creativity","learning","retention","ownership","accountability","responsiveness","utilisation","utilization","commitment","competence","acceptance","resistance","supply","shortage","workforce","staff","trainers","employees","people","participants","customers","patients","volunteers","students"]);
+const NON_MEASURE_END=new Set(["programme","system","project","workshop","meeting","policy","framework","initiative","course","event","campaign","presentation","document","handbook","dashboard","committee","procedure","plan","strategy","platform","software","application","app","technology","tool","equipment","function","training"]);
+const ORGANISATIONAL_VARIABLES=new Set([
+"manpower","headcount","budget","funding","revenue","expenditure","expenses","profit","cash flow","cashflow","cash reserves","debt","cost","costs","savings","investment","workforce","staffing","workload","productivity","morale","turnover","absenteeism","demand","supply","inventory","capacity","resilience","liquidity","inflation","salary","wages","payroll","resources","leadership","trust","confidence"
+]);
+// Single nouns are accepted only when they unambiguously denote a changing quantity or condition.
+// Words like "policy", "system", "meeting" and "project" remain object names.
+const TOPICS=[
+ {keys:["manpower","headcount","staff strength","personnel strength","workforce strength"],suggest:["Manpower","Manpower Availability","Manpower Capacity","Staffing Levels"]},
+ {keys:["budget","funding","finance","financial","money","cash","revenue","income","profit","expenditure","expense","spending","cost","saving","debt","payroll","salary","wages","investment","liquidity"],suggest:["Budget Availability","Funding Adequacy","Operating Costs","Cash Flow"]},
+ {keys:["policy","policies","regulation","regulatory","governance","compliance","guideline","rules","sop","procedure"],suggest:["Policy Clarity","Policy Compliance","Policy Awareness","Policy Implementation Rate"]},
+ {keys:["procurement","purchasing","supplier","vendor","contract","supply chain"],suggest:["Procurement Lead Time","Supplier Reliability","Supply Availability","Contract Compliance"]},
+ {keys:["data","information","records","reporting","analytics","accuracy"],suggest:["Data Quality","Information Accessibility","Reporting Timeliness","Data Accuracy"]},
+ {keys:["cybersecurity","security","privacy","risk","incident","hazard","safety"],suggest:["Security Incident Rate","Risk Exposure","Safety Compliance","Incident Frequency"]},
+ {keys:["digital","automation","ai","application","network","infrastructure","equipment","maintenance","asset"],suggest:["Technology Adoption","System Availability","Equipment Reliability","Maintenance Backlog"]},
+ {keys:["culture","values","ethics","psychological","wellbeing","wellness","morale","burnout","fatigue"],suggest:["Psychological Safety","Staff Morale","Change Readiness","Employee Wellbeing"]},
+ {keys:["strategy","strategic","planning","prioritisation","prioritization","decision"],suggest:["Strategic Alignment","Decision Quality","Planning Accuracy","Priority Clarity"]},
+ {keys:["customer","client","citizen","patient","stakeholder","public","community"],suggest:["Stakeholder Satisfaction","Service Quality","Stakeholder Trust","Service Accessibility"]},
+ {keys:["operations","operational","service delivery","queue","waiting","turnaround","backlog"],suggest:["Operational Capacity","Service Delivery Time","Processing Backlog","Service Reliability"]},
+ {keys:["facility","facilities","office","workspace","building","space"],suggest:["Workspace Availability","Facility Capacity","Facility Reliability","Space Utilisation"]},
+ {keys:["trainer","trainers","instructor","facilitator"],suggest:["Number of Trainers","Trainer Availability","Trainer Competency"]},
+ {keys:["training","course","workshop","learning","seminar"],suggest:["Training Frequency","Training Participation","Training Quality","Training Hours"]},
+ {keys:["hr","human resources","human resource","hr function"],suggest:["HR Capacity","HR Service Quality","HR Staffing Levels","HR Service Availability"]},
+ {keys:["junior","junior staff"],suggest:["Junior Staff Engagement","Number of Junior Staff","Junior Staff Competency"]},
+ {keys:["staff","employee","employees","people","personnel","workforce","headcount","worker"],suggest:["Staffing Levels","Number of Staff","Staff Availability","Staff Competency"]},
+ {keys:["communication","communicate","information"],suggest:["Communication Quality","Communication Frequency","Communication Clarity"]},
+ {keys:["engagement","engage","participation","participate"],suggest:["Stakeholder Engagement","Staff Engagement","Participation Rate"]},
+ {keys:["competency","competence","skills","skill","capability","abilities"],suggest:["Staff Competency","Staff Skills","Capability Level"]},
+ {keys:["trust"],suggest:["Stakeholder Trust","Team Trust"]},
+ {keys:["technology","system","software","digital","app","platform"],suggest:["Technology Adoption","System Reliability","System Usability"]},
+ {keys:["policy","procedure","rule"],suggest:["Policy Clarity","Policy Compliance"]},
+ {keys:["process","workflow","operations"],suggest:["Process Efficiency","Process Reliability","Processing Time"]},
+ {keys:["resource","resources","budget","funding"],suggest:["Resource Availability","Resource Adequacy","Budget Availability"]},
+ {keys:["meeting"],suggest:["Meeting Frequency","Meeting Effectiveness"]},
+ {keys:["leadership","leader","management"],suggest:["Leadership Support","Management Commitment","Leadership Capability"]},
+ {keys:["customer","client","service"],suggest:["Customer Satisfaction","Service Quality","Service Response Time"]},
+ {keys:["performance","productivity","output"],suggest:["Team Performance","Work Quality","Productivity"]},
+ {keys:["function","role","roles","responsibility","responsibilities"],suggest:["Role Clarity","Functional Capability","Service Capacity"]},
+ {keys:["motivation","morale"],suggest:["Staff Motivation","Employee Morale"]},
+ {keys:["feedback"],suggest:["Feedback Quality","Feedback Frequency"]},
+ {keys:["culture"],suggest:["Learning Culture","Collaboration Culture"]},
+ {keys:["change"],suggest:["Change Readiness","Change Acceptance"]},
+ {keys:["workload"],suggest:["Workload","Workload Balance"]},
+ {keys:["error","mistake","defect"],suggest:["Error Rate","Defect Rate"]},
+ {keys:["complaint"],suggest:["Complaint Rate","Number of Complaints"]}
+];
+const FIXED={
+ "manpower":["Manpower Availability","Manpower Capacity","Staffing Levels"],
+ "money":["Budget Availability","Funding Adequacy","Cash Flow"],
+ "budget":["Budget Availability","Budget Utilisation","Funding Adequacy"],
+ "new policy":["Policy Clarity","Policy Compliance","Policy Awareness"],
+ "new software":["System Reliability","Technology Adoption","System Usability"],
+ "more manpower":["Manpower","Manpower Availability","Staffing Levels"],
+ "add manpower":["Manpower","Manpower Availability","Staffing Levels"],
+ "policy":["Policy Clarity","Policy Compliance","Policy Awareness"],
+ "training competency":["Training Competency"],
+ "training staff":["Staff Training Frequency","Staff Training Participation","Number of Staff Trained"],
+ "function of people":["Staff Functional Capability","Role Clarity","Workforce Capacity"],
+ "hr function":["HR Capacity","HR Service Quality","HR Staffing Levels"],
+ "people":["Number of People","Staffing Levels","Workforce Size"],
+ "trainers":["Number of Trainers","Trainer Availability"],
+ "junior staff":["Number of Junior Staff","Junior Staff Engagement"],
+ "staff":["Number of Staff","Staff Availability"],
+ "training":["Training Frequency","Training Hours","Training Participation"],
+ "training programme":["Training Participation","Training Frequency","Training Quality"],
+ "system":["System Reliability","System Availability","System Usability"],
+ "programme":["Programme Participation","Programme Effectiveness"],
+ "policy":["Policy Clarity","Policy Compliance"]
+};
+const VALID=new Set(["training competency","training delivery quality","staff competency","leadership competency","training quality","training frequency","training hours","training participation","training effectiveness","staff engagement","junior staff engagement","employee engagement","stakeholder engagement","knowledge sharing","leadership support","workload","number of people","number of trainers","number of junior staff","staffing levels","workforce size","trainer availability","hr capacity","hr staffing levels","hr service availability","hr service quality","staff functional capability","role clarity","workforce capacity","communication quality","error rate","training availability","system reliability","technology adoption","staff training frequency","staff training participation","number of staff trained","staff motivation","psychological safety","learning culture","improvement capacity","management support","project progress","customer satisfaction","employee satisfaction","employee retention","staff confidence","work quality","process efficiency","training programme participation","training program participation","training deployment frequency","deployment frequency","staff performance","staff turnover rate","staff availability","staff skills","training participation rate","resource availability","resource adequacy","team trust","feedback quality","meeting frequency","meeting effectiveness","workshop frequency","workshop participation","staff absenteeism","system availability","team cohesion","leadership credibility","training uptake","data quality","staff readiness","manpower availability","manpower capacity","manpower competency","manpower shortage","manpower strength","manpower utilisation","manpower utilization","manpower levels","manpower adequacy","manpower productivity","workforce capability","workforce availability","workforce size","staff strength","personnel availability","staffing adequacy","staffing shortage","employee morale","employee wellbeing","staff burnout","staff fatigue","staff retention","staff turnover","staff absenteeism","recruitment rate","recruitment lead time","hiring rate","training coverage","knowledge retention","role clarity","leadership capability","management commitment","employee empowerment","decision quality","decision speed","accountability","organisational trust","organizational trust","team collaboration","psychological safety","change resistance","change acceptance","change readiness","budget availability","budget adequacy","budget utilisation","budget utilization","funding availability","funding adequacy","financial sustainability","financial resilience","financial performance","financial capacity","operating costs","operating expenditure","operating budget","cash flow","cash reserves","revenue growth rate","revenue","profit margin","profitability","cost efficiency","cost effectiveness","resource utilisation","resource utilization","investment level","salary competitiveness","procurement cost","procurement lead time","policy clarity","policy compliance","policy awareness","policy effectiveness","policy implementation rate","regulatory compliance","governance quality","governance effectiveness","decision transparency","audit compliance","risk exposure","risk awareness","risk mitigation capacity","ethical awareness","safety compliance","security incident rate","incident frequency","system availability","system reliability","system performance","system usability","system response time","system downtime","system integration quality","technology adoption","technology readiness","digital literacy","automation level","data accuracy","data completeness","data quality","information accessibility","reporting timeliness","cybersecurity readiness","equipment availability","equipment reliability","maintenance backlog","asset utilisation","process efficiency","process effectiveness","process reliability","process complexity","workflow efficiency","processing time","service delivery time","service accessibility","service responsiveness","service demand","service capacity","service reliability","customer satisfaction","stakeholder satisfaction","stakeholder trust","complaint rate","response time","operational capacity","operational efficiency","operational resilience","processing backlog","queue length","waiting time","quality of service","resource availability","resource adequacy","resource allocation efficiency","facility capacity","facility reliability","workspace availability","space utilisation","inventory levels","inventory availability","supplier reliability","supply availability","supply chain resilience","contract compliance","project completion rate","project progress","strategic alignment","strategy clarity","priority clarity","planning accuracy","organisational resilience","organizational resilience","learning culture","innovation capacity","knowledge sharing","collaboration quality","communication clarity","communication quality","communication frequency"]);
+function tidy(x){return String(x??"").normalize("NFKC").replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/\s+/g," ").trim();}
+function clean(x){return tidy(x).toLowerCase().replace(/[!?.,;:]+$/g,"").replace(/-/g," ").replace(/\s+/g," ").trim();}
+function tokens(x){return clean(x).match(/[a-z0-9]+(?:'[a-z]+)?/g)||[];}
+function singular(x){if(NORMALIZE_MAP[x])return NORMALIZE_MAP[x];if(x.endsWith("ies")&&x.length>4)return x.slice(0,-3)+"y";if(x.endsWith("s")&&!x.endsWith("ss")&&x.length>4)return x.slice(0,-1);return x;}
+function stemTokens(x){return tokens(x).flatMap(t=>singular(t).split(" "));}
+function suggestions(raw){
+ const text=clean(raw), t=stemTokens(raw), set=new Set();
+ const add=a=>a.forEach(s=>set.add(s));
+ if(FIXED[text])add(FIXED[text]);
+ // Match topic words rather than exact phrases; retain topic order to prioritize specific nouns.
+ const ranked=TOPICS.map((topic,i)=>({topic,i,score:topic.keys.reduce((sum,k)=>sum+(text.includes(k)?k.length+3:0),0)})).filter(x=>x.score>0).sort((a,b)=>b.score-a.score||a.i-b.i);
+ for(const item of ranked)add(item.topic.suggest);
+ if(!set.size&&t.includes("function"))add(["Functional Capability","Role Clarity","Service Capacity"]);
+ return [...set].slice(0,4);
+}
+function reviewVariable(input){
+ const name=tidy(input), text=clean(input), ts=tokens(input);
+ function rethink(reason,seed=name,question="What condition or quantity do you mean that can increase or decrease over time?"){
+  return {name,status:"rethink",reason,suggestions:suggestions(seed),question};
+ }
+ if(!name)return rethink("Enter a variable name.");
+ if(/^[\d\W]+$/.test(name))return rethink("A number or symbol alone does not name a variable.");
+ if(CLAUSE.test(text)||/[.!?;:]/.test(name))return rethink("This is a sentence, purpose, or explanation rather than one variable.",name,"What single changing condition does this statement describe?");
+ if(ts.some((w,i)=>INTENT_WORDS.has(w)&&(i<=2))||/^(?:how|ways|steps)\s+to\b/.test(text)||/^(?:we|i|our team|the team|staff|management|students)\s+(?:want|need|should|must|will|aim|plan|try)\b/.test(text))return rethink("This is an intention, instruction, or plan rather than a neutral variable.");
+ if(DIR_WORDS.has(ts[0]))return rethink("The name starts with a direction. Use a neutral condition or quantity that can move up or down.",ts.slice(1).join(" "));
+ if(VALID.has(text)||ORGANISATIONAL_VARIABLES.has(text))return {name,status:"okay"};
+ if(ts.length>=2&&ts[0]==="training"&&ts.length<=4&&!ts.includes("for")&&MEASURE.has(ts[ts.length-1])&&!["staff","people","trainers","employees","workforce","participants","customers","patients","volunteers","students"].includes(ts[ts.length-1]))return {name,status:"okay"};
+ if(ACTION_FORMS.has(ts[0])&&!VALID.has(text)){
+  // Gerund-noun combinations: 'training competency' is valid, 'training staff' ambiguous/action.
+  return rethink("This reads as an action or intervention, not a neutral changing condition.",ts.slice(1).join(" ")||name,"What changing condition or quantity does this action affect?");
+ }
+ if(ts.some((t,i)=>i>0&&["more","less","better","higher","lower","increased","decreased","improved","reduced"].includes(t)))return rethink("This includes directional language. Name the variable without prescribing its direction.");
+ if(/^(?:there is|there are|we have|our team|the team)\b/.test(text))return rethink("This reads as a statement rather than a variable.");
+ if(VALID.has(text)||ORGANISATIONAL_VARIABLES.has(text))return {name,status:"okay"};
+ if(OBJECTS.has(text))return rethink("This names an object, programme, or activity rather than the aspect that can increase or decrease.");
+ if(BARE.has(text))return rethink("This term is too broad to identify a specific changing condition or quantity.");
+ if(ts.length>11)return rethink("This is unusually long and may describe an entire sentence rather than one variable.");
+ if(ts.length>7&&!/^(?:number|percentage|proportion|amount|level|rate|frequency|duration|quality|availability|time|volume)\s+of\b/.test(text))return rethink("This is a long phrase. Name one clear changing condition.");
+ if(text==="training staff")return rethink("This can mean an action (training staff) or a group of staff. Name the changing aspect.","training staff");
+ if(/^(?:number|percentage|proportion|amount|level|rate|frequency|duration|quality|availability|time|volume)\s+of\s+\S+/.test(text))return {name,status:"okay"};
+ if(ts.length>=2&&NON_MEASURE_END.has(ts[ts.length-1]))return rethink("This appears to name an object, event, or programme rather than a changing attribute.");
+ if(/^(?:number|percentage|proportion|amount|level|rate|frequency|duration|quality|availability|time|volume)\s+of\s+\S+/.test(text))return {name,status:"okay"};
+ if(ts.length>=2&&MEASURE.has(ts[ts.length-1]))return {name,status:"okay"};
+ // Noun phrases with familiar abstract variable heads in plural form can pass.
+ if(ts.length>=2&&MEASURE.has(singular(ts[ts.length-1])))return {name,status:"okay"};
+ return rethink("It is not clear that this phrase names something that can meaningfully increase or decrease.");
+}
+if(typeof module!=="undefined"&&module.exports)module.exports={reviewVariable,suggestions};
+
+
+
+
+
+
+
+
+</script>
+<script>
+const $=id=>document.getElementById(id);
+const escapeHTML=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let report="";
+$("example").addEventListener("click",()=>{$("vars").value="Training Competency\nMore Training\nGive more trainer\nDecrease HR Function\nFunction of People\nAdd Training\nStaff Engagement\nError Rate";});
+$("clear").addEventListener("click",()=>{$("vars").value="";$("feedback").hidden=true;});
+$("check").addEventListener("click",()=>{
+ const lines=$("vars").value.split(/\r?\n/).map(tidy).filter(Boolean);
+ if(lines.length<1||lines.length>30){alert("Please enter between 1 and 30 variables, one per line.");return;}
+ const reviews=lines.map(reviewVariable);
+ $("results").innerHTML=reviews.map((r,i)=>{
+  let content='<article class="item"><h3>'+escapeHTML((i+1)+". "+r.name)+'</h3>';
+  if(r.status==="okay")content+='<div class="status ok">✓ Variable is okay.</div>';
+  else{
+    content+='<div class="status warn">⚠ Rethink Variable</div>';
+    content+='<p><strong>Reason:</strong> '+escapeHTML(r.reason)+'</p>';
+    if(r.suggestions.length)content+='<p class="suggest"><strong>Possible variable names:</strong> '+r.suggestions.map(escapeHTML).join(" · ")+'</p>';
+    content+='<p><strong>Reflect:</strong> '+escapeHTML(r.question)+'</p>';
+  }
+  return content+"</article>";
+ }).join("");
+ report="CLD VARIABLE LEARNING COACH\nStage: "+$("stage").value+"\n\n"+reviews.map((r,i)=>{
+   let x=(i+1)+". "+r.name+"\n";
+   if(r.status==="okay")return x+"✓ Variable is okay.";
+   return x+"⚠ Rethink Variable\nReason: "+r.reason+(r.suggestions.length?"\nPossible variable names: "+r.suggestions.join(", "):"")+"\nReflect: "+r.question;
+ }).join("\n\n");
+ $("feedback").hidden=false;
+ $("feedback").scrollIntoView({behavior:"smooth",block:"start"});
+});
+$("download").addEventListener("click",()=>{
+ const u=URL.createObjectURL(new Blob([report],{type:"text/plain;charset=utf-8"}));
+ const a=document.createElement("a");a.href=u;a.download="CLD-variable-feedback.txt";a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);
+});
+$("print").addEventListener("click",()=>window.print());
+</script></body></html>
